@@ -105,7 +105,7 @@ ENTRYPOINT [ "argoexec" ]
 
 ####################################################################################################
 
-FROM gcr.io/distroless/static as workflow-controller
+FROM tencentos/tencentos4-microdnf as workflow-controller
 
 USER 8737
 
