@@ -965,8 +965,10 @@ func (wfc *WorkflowController) addWorkflowInformerHandlers(ctx context.Context) 
 						// for a new workflow, we do not want to rate limit its execution using AddRateLimited
 						logger.WithField("key", key).Info(ctx, "Adding new workflow to queue, ADD")
 						wfc.wfQueue.AddAfter(key, wfc.Config.InitialDelay.Duration)
-						priority, creation := getWfPriority(obj)
-						wfc.throttler.Add(key, priority, creation)
+						if throttlerName != "EMPTY" {
+							priority, creation := getWfPriority(obj)
+							wfc.throttler.Add(key, priority, creation)
+						}
 					}
 				},
 				// This function is called when an updated (we already know about this object)
@@ -981,8 +983,10 @@ func (wfc *WorkflowController) addWorkflowInformerHandlers(ctx context.Context) 
 					if err == nil {
 						logger.WithField("key", key).Info(ctx, "Adding new workflow to queue, UPDATE")
 						wfc.wfQueue.AddRateLimited(key)
-						priority, creation := getWfPriority(new)
-						wfc.throttler.Add(key, priority, creation)
+						if throttlerName != "EMPTY" {
+							priority, creation := getWfPriority(new)
+							wfc.throttler.Add(key, priority, creation)
+						}
 					}
 				},
 				// This function is called when an object is to be removed
