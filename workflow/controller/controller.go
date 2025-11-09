@@ -174,6 +174,8 @@ var (
 	// believe it cannot run. By delaying for 1s, we would have finished the semaphore counter
 	// updates, and the next workflow will see the updated availability.
 	semaphoreNotifyDelay = env.LookupEnvDurationOr(logging.InitLoggerInContext(), "SEMAPHORE_NOTIFY_DELAY", time.Second)
+
+	throttlerName = env.LookupEnvStringOr("THROTTLER_NAME", "")
 )
 
 func init() {
@@ -239,6 +241,9 @@ func NewWorkflowController(ctx context.Context, restConfig *rest.Config, kubecli
 }
 
 func (wfc *WorkflowController) newThrottler() sync.Throttler {
+	if throttlerName == "EMPTY" {
+		return sync.EmptyThrottler{}
+	}
 	f := func(key string) { wfc.wfQueue.Add(key) }
 	return sync.NewMultiThrottler(wfc.Config.Parallelism, wfc.Config.NamespaceParallelism, f)
 }
@@ -702,6 +707,8 @@ func (wfc *WorkflowController) runArchiveWorker(ctx context.Context) {
 // processNextItem is the worker logic for handling workflow updates
 func (wfc *WorkflowController) processNextItem(ctx context.Context) bool {
 	key, quit := wfc.wfQueue.Get()
+	debugLogger := logging.RequireLoggerFromContext(ctx)
+	debugLogger.WithField("key", key).Info(ctx, "Start process next workflow")
 	if quit {
 		return false
 	}
@@ -956,6 +963,7 @@ func (wfc *WorkflowController) addWorkflowInformerHandlers(ctx context.Context) 
 					key, err := cache.MetaNamespaceKeyFunc(obj)
 					if err == nil {
 						// for a new workflow, we do not want to rate limit its execution using AddRateLimited
+						logger.WithField("key", key).Info(ctx, "Adding new workflow to queue, ADD")
 						wfc.wfQueue.AddAfter(key, wfc.Config.InitialDelay.Duration)
 						priority, creation := getWfPriority(obj)
 						wfc.throttler.Add(key, priority, creation)
@@ -971,6 +979,7 @@ func (wfc *WorkflowController) addWorkflowInformerHandlers(ctx context.Context) 
 					}
 					key, err := cache.MetaNamespaceKeyFunc(new)
 					if err == nil {
+						logger.WithField("key", key).Info(ctx, "Adding new workflow to queue, UPDATE")
 						wfc.wfQueue.AddRateLimited(key)
 						priority, creation := getWfPriority(new)
 						wfc.throttler.Add(key, priority, creation)
