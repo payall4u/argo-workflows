@@ -93,6 +93,11 @@ func NewRootCommand() *cobra.Command {
 			config = restclient.AddUserAgent(config, fmt.Sprintf("argo-workflows/%s argo-controller", version.Version))
 			config.Burst = burst
 			config.QPS = qps
+			contentType := "application/json"
+			if os.Getenv("CONTENT_TYPE") == "protobuf" {
+				contentType = "application/vnd.kubernetes.protobuf"
+			}
+			config.ContentConfig.ContentType = contentType
 
 			logs.AddK8SLogTransportWrapper(ctx, config)
 			metrics.AddMetricsTransportWrapper(ctx, config)
